@@ -1,0 +1,2 @@
+flake8
+xxhash==1.0.1
