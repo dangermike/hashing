@@ -1,14 +1,15 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
-	"sort"
-	"strconv"
+	"reflect"
 	"time"
 
-	"github.com/OneOfOne/xxhash"
+	"github.com/dangermike/hashing/go/consistent_hashing/ConsistentHashing"
+	"github.com/dangermike/hashing/go/consistent_hashing/ModHashing"
+	"github.com/dangermike/hashing/go/consistent_hashing/ObjectHasher"
+	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashing"
 )
 
 // var d0 = []string{
@@ -54,70 +55,6 @@ func data(depth int) <-chan string {
 	return ch
 }
 
-// BucketPlace is the location of a bucket on the ring
-type BucketPlace struct {
-	place  uint64
-	bucket int
-}
-
-// ConsistentHashRing is just a collection of BucketPlace(s), sorted by place
-type ConsistentHashRing struct {
-	buckets  []BucketPlace
-	replicas int
-}
-
-// NewConsistentHashRing makes a new ring given a set of buckets and replicas.
-// buckets should be a positive, non-zero number
-// replicas will default to 200 if less than or equal to zero
-func NewConsistentHashRing(buckets int, replicas int) *ConsistentHashRing {
-	if replicas <= 0 {
-		replicas = buckets * buckets
-	}
-	ring := make([]BucketPlace, buckets*replicas, buckets*replicas)
-	for b := 0; b < buckets; b++ {
-		for r := 0; r < replicas; r++ {
-			place := placeUInt64N(uint64(b), r+1)
-			ring[(b*replicas)+r] = BucketPlace{place, b}
-		}
-	}
-	sort.Slice(ring, func(i, j int) bool {
-		return ring[i].place < ring[j].place
-	})
-	return &ConsistentHashRing{ring, replicas}
-}
-
-// NextObject will return the next bucket number on the ring when given a location
-func (ring *ConsistentHashRing) NextObject(location uint64) int {
-	rr := ring.buckets
-	i := sort.Search(
-		len(rr),
-		func(i int) bool { return rr[i].place >= location },
-	)
-	if i >= len(rr) {
-		return rr[0].bucket
-	}
-	return rr[i].bucket
-}
-
-func placeUInt64N(o uint64, ix int) uint64 {
-	if ix > 0 {
-		b := make([]byte, 8)
-		for ; ix >= 1; ix-- {
-			binary.LittleEndian.PutUint64(b, o)
-			o = xxhash.Checksum64(b)
-		}
-	}
-	return o
-}
-
-func placeStringN(s string, ix int) uint64 {
-	return placeUInt64N(xxhash.ChecksumString64(s), ix)
-}
-
-func placeString(s string) uint64 {
-	return xxhash.ChecksumString64(s)
-}
-
 func uniformity(v []int) float64 {
 	// https://stats.stackexchange.com/a/92056
 	total := float64(0)
@@ -158,68 +95,161 @@ func sexyHertz(hz float64) string {
 	return fmt.Sprintf("%0.2fHz", hz)
 }
 
+type mapper interface {
+	MapBucket(location uint64) int
+	ExpectedMoveRate(otherSize int) float64
+}
+
 func main() {
 	maxLen := 20
-	minLen := 1
-	replicas := -1
+	minLen := 10
+	replicas := 200
 
 	for i := maxLen; i >= minLen; i-- {
-		buckets := make([]int, i, i)
-		ring := NewConsistentHashRing(i, replicas)
-		ring2 := NewConsistentHashRing(i+1, replicas)
-		cnt := 0
-		moved := int64(0)
-		duration := time.Duration(0)
-
-		for d := range data(2) {
-			start := time.Now()
-			location := placeString(d)
-			duration += time.Now().Sub(start)
-			bucket := ring.NextObject(location)
-			bucket2 := ring2.NextObject(location)
-			buckets[bucket]++
-			cnt++
-			if bucket != bucket2 {
-				moved++
-			}
+		targets := [][2]mapper{
+			[2]mapper{
+				ConsistentHashing.New(i, replicas),
+				ConsistentHashing.New(i+1, replicas),
+			},
+			[2]mapper{
+				RendezvousHashing.New(i),
+				RendezvousHashing.New(i + 1),
+			},
+			[2]mapper{
+				ModHashing.New(i),
+				ModHashing.New(i + 1),
+			},
 		}
 
-		diffbuckets := make([]int, i, i)
-		for s := 0; s < len(ring2.buckets); s++ {
-			if ring2.buckets[s].bucket == i {
-				nextSlot := s
-				// keep looking until we find a slot that won't be destroyed
-				for ; ring2.buckets[nextSlot].bucket == i; nextSlot = (nextSlot + 1) % len(ring2.buckets) {
+		for _, mappers := range targets {
+			fmt.Printf("%s[%d]\n", reflect.TypeOf(mappers[0]).String(), i)
+			buckets := make([]int, i, i)
+			cnt := 0
+			moved := int64(0)
+			duration := time.Duration(0)
+
+			for d := range data(2) {
+				start := time.Now()
+				location := ObjectHasher.PlaceString(d)
+				bucket := mappers[0].MapBucket(location)
+				duration += time.Now().Sub(start)
+				bucket2 := mappers[1].MapBucket(location)
+				buckets[bucket]++
+				cnt++
+				if bucket != bucket2 {
+					moved++
 				}
+			}
 
-				diffbuckets[ring2.buckets[nextSlot].bucket]++
-			}
-		}
+			fmt.Println(Sizeof(mappers[0]))
+			fmt.Printf(
+				"%d total in %s (%s); %d (%0.2f%%, %0.2f%% theoretical) moved; %0.3f uniformity\n",
+				cnt,
+				sexyTime(duration),
+				sexyHertz(float64(cnt)/(duration.Seconds())),
+				moved,
+				float64(moved)*100.0/float64(cnt),
+				100.0*mappers[0].ExpectedMoveRate(i+1),
+				(1.0-uniformity(buckets))*100.0,
+			)
+			// for i := 0; i < len(buckets); i++ {
+			// 	if i > 0 {
+			// 		fmt.Print(", ")
+			// 	}
+			// 	fmt.Printf(strconv.Itoa(buckets[i]))
+			// }
 
-		fmt.Printf(
-			"%d total in %s (%s); %d (%0.2f%%, %0.2f%% theoretical) moved; %0.3f uniformity\n",
-			cnt,
-			sexyTime(duration),
-			sexyHertz(float64(cnt)/(duration.Seconds())),
-			moved,
-			float64(moved)*100.0/float64(cnt),
-			100.0/float64(i+1),
-			(1.0-uniformity(buckets))*100.0,
-		)
-		for i := 0; i < len(buckets); i++ {
-			if i > 0 {
-				fmt.Print(", ")
-			}
-			fmt.Printf(strconv.Itoa(buckets[i]))
+			// fmt.Println()
+			fmt.Println("-----")
 		}
-		fmt.Println()
-		for i := 0; i < len(diffbuckets); i++ {
-			if i > 0 {
-				fmt.Print(", ")
-			}
-			fmt.Printf("%0.2f%%", float64(diffbuckets[i])*100.0/float64(ring2.replicas))
-		}
-		fmt.Println()
-		fmt.Println("-----")
 	}
+}
+
+var (
+	sliceSize  = uint64(reflect.TypeOf(reflect.SliceHeader{}).Size())
+	stringSize = uint64(reflect.TypeOf(reflect.StringHeader{}).Size())
+)
+
+func isNativeType(k reflect.Kind) bool {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+		return true
+	}
+	return false
+}
+
+func sizeofInternal(val reflect.Value, fromStruct bool, depth int) (sz uint64) {
+	if depth++; depth > 1000 {
+		panic("sizeOf recursed more than 1000 times.")
+	}
+
+	typ := val.Type()
+
+	if !fromStruct {
+		sz = uint64(typ.Size())
+	}
+
+	switch val.Kind() {
+	case reflect.Ptr:
+		if val.IsNil() {
+			break
+		}
+		sz += sizeofInternal(val.Elem(), false, depth)
+
+	case reflect.Struct:
+		for i := 0; i < val.NumField(); i++ {
+			sz += sizeofInternal(val.Field(i), true, depth)
+		}
+
+	case reflect.Array:
+		if isNativeType(typ.Elem().Kind()) {
+			break
+		}
+		sz = 0
+		for i := 0; i < val.Len(); i++ {
+			sz += sizeofInternal(val.Index(i), false, depth)
+		}
+	case reflect.Slice:
+		if !fromStruct {
+			sz = sliceSize
+		}
+		el := typ.Elem()
+		if isNativeType(el.Kind()) {
+			sz += uint64(val.Len()) * uint64(el.Size())
+			break
+		}
+		for i := 0; i < val.Len(); i++ {
+			sz += sizeofInternal(val.Index(i), false, depth)
+		}
+	case reflect.Map:
+		if val.IsNil() {
+			break
+		}
+		kel, vel := typ.Key(), typ.Elem()
+		if isNativeType(kel.Kind()) && isNativeType(vel.Kind()) {
+			sz += uint64(kel.Size()+vel.Size()) * uint64(val.Len())
+			break
+		}
+		keys := val.MapKeys()
+		for i := 0; i < len(keys); i++ {
+			sz += sizeofInternal(keys[i], false, depth) + sizeofInternal(val.MapIndex(keys[i]), false, depth)
+		}
+	case reflect.String:
+		if !fromStruct {
+			sz = stringSize
+		}
+		sz += uint64(val.Len())
+	}
+	return
+}
+
+// Sizeof returns the estimated memory usage of object(s) not just the size of the type.
+// On 64bit Sizeof("test") == 12 (8 = sizeof(StringHeader) + 4 bytes).
+func Sizeof(objs ...interface{}) (sz uint64) {
+	for i := range objs {
+		sz += sizeofInternal(reflect.ValueOf(objs[i]), false, 0)
+	}
+	return
 }
