@@ -10,6 +10,7 @@ import (
 	"github.com/dangermike/hashing/go/consistent_hashing/ModHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/ObjectHasher"
 	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashing"
+	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashingWithSkeleton"
 )
 
 // var d0 = []string{
@@ -114,6 +115,10 @@ func main() {
 			[2]mapper{
 				RendezvousHashing.New(i),
 				RendezvousHashing.New(i + 1),
+			},
+			[2]mapper{
+				RendezvousHashingWithSkeleton.New(i, 4, 3),
+				RendezvousHashingWithSkeleton.New(i+1, 4, 3),
 			},
 			[2]mapper{
 				ModHashing.New(i),
