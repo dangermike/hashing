@@ -1,6 +1,7 @@
 package ConsistentHashing
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
@@ -59,4 +60,9 @@ func (ring *ConsistentHashRing) ExpectedMoveRate(otherSize int) float64 {
 	buckets := 1 + (len(ring.Buckets) / ring.Replicas)
 	otherSize++
 	return math.Abs(float64(otherSize-buckets)) / float64(buckets)
+}
+
+// Name tells you who we are
+func (ring *ConsistentHashRing) Name() string {
+	return fmt.Sprintf("ConsistentHashRing[%d, %d]", len(ring.Buckets)/ring.Replicas, ring.Replicas)
 }

@@ -1,6 +1,9 @@
 package ModHashing
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // ModHasher uses a simple mod of the object's hash to determine the bucket
 type ModHasher struct {
@@ -35,4 +38,9 @@ func gcd(x uint64, y uint64) uint64 {
 		}
 	}
 	return _gcd
+}
+
+// Name tells yo who we are
+func (mh *ModHasher) Name() string {
+	return fmt.Sprintf("ModHash[%d]", mh.Buckets)
 }

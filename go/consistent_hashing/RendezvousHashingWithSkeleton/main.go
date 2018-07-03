@@ -2,6 +2,7 @@ package RendezvousHashingWithSkeleton
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 
 	"github.com/OneOfOne/xxhash"
@@ -122,4 +123,9 @@ func (rhg *RendezvousHashGroup) ExpectedMoveRate(otherSize int) float64 {
 	otherSize++
 	buckets := int(rhg.Buckets + 1)
 	return math.Abs(float64(otherSize-buckets)) / float64(buckets)
+}
+
+// Name tells you who we are
+func (rhg *RendezvousHashGroup) Name() string {
+	return fmt.Sprintf("RendezvousHashSkeleton(%d, %d)[%d]", rhg.M, rhg.F, rhg.Buckets)
 }

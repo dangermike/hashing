@@ -99,6 +99,7 @@ func sexyHertz(hz float64) string {
 type mapper interface {
 	MapBucket(location uint64) int
 	ExpectedMoveRate(otherSize int) float64
+	Name() string
 }
 
 func main() {
@@ -121,13 +122,17 @@ func main() {
 				RendezvousHashingWithSkeleton.New(i+1, 4, 3),
 			},
 			[2]mapper{
+				RendezvousHashingWithSkeleton.New(i, i, i),
+				RendezvousHashingWithSkeleton.New(i+1, i+1, i+1),
+			},
+			[2]mapper{
 				ModHashing.New(i),
 				ModHashing.New(i + 1),
 			},
 		}
 
 		for _, mappers := range targets {
-			fmt.Printf("%s[%d]\n", reflect.TypeOf(mappers[0]).String(), i)
+			fmt.Println(mappers[0].Name())
 			buckets := make([]int, i, i)
 			cnt := 0
 			moved := int64(0)
