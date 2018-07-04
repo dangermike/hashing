@@ -119,10 +119,6 @@ func main() {
 				MultiPointHashing.New(i+1, 10),
 			},
 			[2]mapper{
-				JumpHash.New(i),
-				JumpHash.New(i + 1),
-			},
-			[2]mapper{
 				ConsistentHashing.New(i, replicas),
 				ConsistentHashing.New(i+1, replicas),
 			},
