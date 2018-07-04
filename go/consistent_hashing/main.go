@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dangermike/hashing/go/consistent_hashing/ConsistentHashing"
+	"github.com/dangermike/hashing/go/consistent_hashing/JumpHash"
 	"github.com/dangermike/hashing/go/consistent_hashing/ModHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/ObjectHasher"
 	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashing"
@@ -109,6 +110,10 @@ func main() {
 
 	for i := maxLen; i >= minLen; i-- {
 		targets := [][2]mapper{
+			[2]mapper{
+				JumpHash.New(i),
+				JumpHash.New(i + 1),
+			},
 			[2]mapper{
 				ConsistentHashing.New(i, replicas),
 				ConsistentHashing.New(i+1, replicas),
