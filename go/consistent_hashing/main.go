@@ -7,11 +7,8 @@ import (
 	"time"
 
 	"github.com/dangermike/hashing/go/consistent_hashing/ConsistentHashing"
-	"github.com/dangermike/hashing/go/consistent_hashing/JumpHash"
-	"github.com/dangermike/hashing/go/consistent_hashing/ModHashing"
+	"github.com/dangermike/hashing/go/consistent_hashing/MultiPointHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/ObjectHasher"
-	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashing"
-	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashingWithSkeleton"
 )
 
 // var d0 = []string{
@@ -110,30 +107,34 @@ func main() {
 
 	for i := maxLen; i >= minLen; i-- {
 		targets := [][2]mapper{
+			// [2]mapper{
+			// 	JumpHash.New(i),
+			// 	JumpHash.New(i + 1),
+			// },
 			[2]mapper{
-				JumpHash.New(i),
-				JumpHash.New(i + 1),
+				MultiPointHashing.New(i, 10),
+				MultiPointHashing.New(i+1, 10),
 			},
 			[2]mapper{
 				ConsistentHashing.New(i, replicas),
 				ConsistentHashing.New(i+1, replicas),
 			},
-			[2]mapper{
-				RendezvousHashing.New(i),
-				RendezvousHashing.New(i + 1),
-			},
-			[2]mapper{
-				RendezvousHashingWithSkeleton.New(i, 4, 3),
-				RendezvousHashingWithSkeleton.New(i+1, 4, 3),
-			},
-			[2]mapper{
-				RendezvousHashingWithSkeleton.New(i, i, i),
-				RendezvousHashingWithSkeleton.New(i+1, i+1, i+1),
-			},
-			[2]mapper{
-				ModHashing.New(i),
-				ModHashing.New(i + 1),
-			},
+			// [2]mapper{
+			// 	RendezvousHashing.New(i),
+			// 	RendezvousHashing.New(i + 1),
+			// },
+			// [2]mapper{
+			// 	RendezvousHashingWithSkeleton.New(i, 4, 3),
+			// 	RendezvousHashingWithSkeleton.New(i+1, 4, 3),
+			// },
+			// [2]mapper{
+			// 	RendezvousHashingWithSkeleton.New(i, i, i),
+			// 	RendezvousHashingWithSkeleton.New(i+1, i+1, i+1),
+			// },
+			// [2]mapper{
+			// 	ModHashing.New(i),
+			// 	ModHashing.New(i + 1),
+			// },
 		}
 
 		for _, mappers := range targets {
