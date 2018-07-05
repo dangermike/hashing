@@ -105,11 +105,11 @@ type mapper interface {
 }
 
 func main() {
-	maxLen := 20
-	minLen := 10
+	maxLen := 1024
+	minLen := 8
 	replicas := 200
 
-	for i := maxLen; i >= minLen; i-- {
+	for i := maxLen; i >= minLen; i /= 2 {
 		targets := [][2]mapper{
 			[2]mapper{
 				JumpHash.New(i),
@@ -135,14 +135,13 @@ func main() {
 				RendezvousHashingWithSkeleton.New(i, 4, 3),
 				RendezvousHashingWithSkeleton.New(i+1, 4, 3),
 			},
-			[2]mapper{
-				RendezvousHashingWithSkeleton.New(i, i, i),
-				RendezvousHashingWithSkeleton.New(i+1, i+1, i+1),
-			},
+			// [2]mapper{
+			// 	RendezvousHashingWithSkeleton.New(i, i, i),
+			// 	RendezvousHashingWithSkeleton.New(i+1, i+1, i+1),
+			// },
 		}
 
 		for _, mappers := range targets {
-			fmt.Println(mappers[0].Name())
 			buckets := make([]int, i, i)
 			cnt := 0
 			moved := int64(0)
@@ -161,9 +160,9 @@ func main() {
 				}
 			}
 
-			fmt.Println(Sizeof(mappers[0]))
 			fmt.Printf(
-				"%d total in %s (%s); %d (%0.2f%%, %0.2f%% theoretical) moved; %0.3f uniformity\n",
+				"%s: %d total in %s (%s); %d (%0.2f%%, %0.2f%% theoretical) moved; %0.3f uniformity; %d bytes\n",
+				mappers[0].Name(),
 				cnt,
 				sexyTime(duration),
 				sexyHertz(float64(cnt)/(duration.Seconds())),
@@ -171,6 +170,7 @@ func main() {
 				float64(moved)*100.0/float64(cnt),
 				100.0*mappers[0].ExpectedMoveRate(i+1),
 				(1.0-uniformity(buckets))*100.0,
+				Sizeof(mappers[0]),
 			)
 			// for i := 0; i < len(buckets); i++ {
 			// 	if i > 0 {
@@ -180,7 +180,6 @@ func main() {
 			// }
 
 			// fmt.Println()
-			fmt.Println("-----")
 		}
 	}
 }
