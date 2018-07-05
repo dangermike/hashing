@@ -8,6 +8,7 @@ import (
 
 	"github.com/dangermike/hashing/go/consistent_hashing/ConsistentHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/JumpHash"
+	"github.com/dangermike/hashing/go/consistent_hashing/MaglevHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/MultiPointHashing"
 	"github.com/dangermike/hashing/go/consistent_hashing/ObjectHasher"
 	"github.com/dangermike/hashing/go/consistent_hashing/RendezvousHashing"
@@ -113,6 +114,10 @@ func main() {
 			[2]mapper{
 				JumpHash.New(i),
 				JumpHash.New(i + 1),
+			},
+			[2]mapper{
+				MaglevHashing.New(i, i+1),
+				MaglevHashing.New(i+1, i+1),
 			},
 			[2]mapper{
 				MultiPointHashing.New(i, 10),
