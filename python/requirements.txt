@@ -1,2 +1,5 @@
 flake8
-xxhash==1.0.1
+yapf
+pylama
+xxhash==2.0.2
+types-xxhash==2.0.2
